@@ -17,6 +17,7 @@ func main() {
 
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.HandleFunc("GET /api/metrics", apiCfg.handlerMetrics)
+	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerAdminMetrics)
 	mux.HandleFunc("/api/reset", apiCfg.handleReset)
 
 	srv := &http.Server{
@@ -42,6 +43,18 @@ func (cgf *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	body := fmt.Sprintf("Hits: %v", cgf.filserverHits)
+	w.Write([]byte(body))
+}
+
+func (cgf *apiConfig) handlerAdminMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	body := fmt.Sprintf(`<html>
+<body>
+    <h1>Welcome, Chirpy Admin</h1>
+    <p>Chirpy has been visited %d times!</p>
+</body>
+</html>`, cgf.filserverHits)
 	w.Write([]byte(body))
 }
 
