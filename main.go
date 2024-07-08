@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -19,6 +20,7 @@ func main() {
 	mux.HandleFunc("GET /api/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerAdminMetrics)
 	mux.HandleFunc("/api/reset", apiCfg.handleReset)
+	mux.HandleFunc("POST /api/validate_chirp", apiCfg.handlerValideateChirp)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
@@ -57,7 +59,53 @@ func (cgf *apiConfig) handlerAdminMetrics(w http.ResponseWriter, r *http.Request
 </html>`, cgf.filserverHits)
 	w.Write([]byte(body))
 }
-
+func (cgf *apiConfig) handlerValideateChirp(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Body string `json:"Body"`
+	}
+	// First, decode request to see if it's valid
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	fmt.Println("Incoming Parameters:", params)
+	if err != nil {
+		//It's not valid, so we have to prepare a response
+		log.Printf("Error decoding parameters: %s", err)
+		w.WriteHeader(400)
+		type returnVal struct {
+			Error string
+		}
+		respBody := returnVal{
+			Error: "Something went wrong",
+		}
+		data, _ := json.Marshal(respBody)
+		w.Write(data)
+		return
+	}
+	if len(params.Body) > 140 {
+		w.WriteHeader(400)
+		type returnVal struct {
+			Valid bool `json:"valid"`
+		}
+		respBody := returnVal{
+			Valid: false,
+		}
+		data, _ := json.Marshal(respBody)
+		w.Write(data)
+		return
+	}
+	w.WriteHeader(200)
+	resp := struct {
+		Valid bool `json:"valid"`
+	}{
+		Valid: true,
+	}
+	data, _ := json.Marshal(resp)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	fmt.Println("Outgoing Data: ", data)
+	w.Write(data)
+}
 func (cgf *apiConfig) handleReset(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
