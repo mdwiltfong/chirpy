@@ -97,14 +97,17 @@ func handlerReadiness(w http.ResponseWriter, r *http.Request) {
 }
 
 func respondWithCleanedBody(w http.ResponseWriter, chirp string) {
-	profaneWords := [3]string{"kerfuffle", "sharbert", "fornax"}
+	profaneWords := map[string]struct{}{
+		"kerfuffle": {},
+		"sharbert":  {},
+		"fornax":    {},
+	}
 
 	words := strings.Split(chirp, " ")
 	for i := 0; i < len(words); i++ {
-		for j := 0; j < len(profaneWords); j++ {
-			if strings.ToLower(words[i]) == profaneWords[j] {
-				words[i] = "****"
-			}
+		lowerCaseWord := strings.ToLower(words[i])
+		if _, ok := profaneWords[lowerCaseWord]; ok {
+			words[i] = "****"
 		}
 	}
 
