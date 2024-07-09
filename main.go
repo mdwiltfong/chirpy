@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
 
 func main() {
@@ -67,44 +68,19 @@ func (cgf *apiConfig) handlerValideateChirp(w http.ResponseWriter, r *http.Reque
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
-	fmt.Println("Incoming Parameters:", params)
 	if err != nil {
+
 		//It's not valid, so we have to prepare a response
 		log.Printf("Error decoding parameters: %s", err)
-		w.WriteHeader(400)
-		type returnVal struct {
-			Error string
-		}
-		respBody := returnVal{
-			Error: "Something went wrong",
-		}
-		data, _ := json.Marshal(respBody)
-		w.Write(data)
+		respondWithError(w, 400, "Something went wrong")
 		return
 	}
 	if len(params.Body) > 140 {
-		w.WriteHeader(400)
-		type returnVal struct {
-			Valid bool `json:"valid"`
-		}
-		respBody := returnVal{
-			Valid: false,
-		}
-		data, _ := json.Marshal(respBody)
-		w.Write(data)
+		respondWithError(w, 400, "Chirp is too long")
 		return
 	}
-	w.WriteHeader(200)
-	resp := struct {
-		Valid bool `json:"valid"`
-	}{
-		Valid: true,
-	}
-	data, _ := json.Marshal(resp)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	fmt.Println("Outgoing Data: ", data)
-	w.Write(data)
+
+	respondWithCleanedBody(w, params.Body)
 }
 func (cgf *apiConfig) handleReset(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
@@ -118,4 +94,50 @@ func handlerReadiness(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(http.StatusText(http.StatusOK)))
+}
+
+func respondWithCleanedBody(w http.ResponseWriter, chirp string) {
+	profaneWords := [3]string{"kerfuffle", "sharbert", "fornax"}
+
+	words := strings.Split(chirp, " ")
+	for i := 0; i < len(words); i++ {
+		for j := 0; j < len(profaneWords); j++ {
+			if strings.ToLower(words[i]) == profaneWords[j] {
+				words[i] = "****"
+			}
+		}
+	}
+
+	type cleanedResponse struct {
+		CleanBody string `json:"cleaned_body"`
+	}
+	cleanResp := cleanedResponse{
+		CleanBody: strings.Join(words, " "),
+	}
+
+	respondWithJSON(w, 200, cleanResp)
+
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	w.WriteHeader(code)
+	data, _ := json.Marshal(payload)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	fmt.Println("Outgoing Data: ", data)
+	w.Write(data)
+	return
+}
+
+func respondWithError(w http.ResponseWriter, code int, msg string) {
+	w.WriteHeader(code)
+	type returnVal struct {
+		Error string `json:"error"`
+	}
+	respBody := returnVal{
+		Error: msg,
+	}
+	data, _ := json.Marshal(respBody)
+	w.Write(data)
+	return
 }
