@@ -65,3 +65,16 @@ func TestWriteDB(t *testing.T) {
 	}
 	cleanUp(t)
 }
+func TestEnsureDB(t *testing.T) {
+	dbClient, _ := utils.NewDB("../database/database.json")
+	os.Remove("../database/database.json")
+	dbClient.EnsureDB()
+	data, _ := os.ReadFile("../database/database.json")
+	tempData := types.Database{}
+	json.Unmarshal(data, &tempData)
+	if tempData.Chirps.Num1.Body != "This is the first chirp ever!" {
+		t.Fatal("There is no database.json file")
+	}
+	cleanUp(t)
+
+}

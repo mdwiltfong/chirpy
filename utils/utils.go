@@ -33,7 +33,7 @@ func NewDB(path string) (*DataBaseClient, error) {
 			return nil, writeError
 		}
 	}
-	return &DataBaseClient{Path: "../database/database.json", Mux: new(sync.RWMutex)}, nil
+	return &DataBaseClient{Path: path, Mux: new(sync.RWMutex)}, nil
 
 }
 
@@ -62,5 +62,18 @@ func (db *DataBaseClient) WriteDB(dbStructure DBStructure) error {
 		return writeError
 	}
 
+	return nil
+}
+
+func (db *DataBaseClient) EnsureDB() error {
+	_, err := os.ReadFile(db.Path)
+	if err != nil {
+		dbTemplate, _ := os.ReadFile("../database/template.json")
+		writeError := os.WriteFile(db.Path, dbTemplate, 0644)
+		if writeError != nil {
+			log.Println(writeError)
+			return writeError
+		}
+	}
 	return nil
 }
