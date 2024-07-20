@@ -78,3 +78,15 @@ func TestEnsureDB(t *testing.T) {
 	cleanUp(t)
 
 }
+
+func TestGetChirps(t *testing.T) {
+	dbClient, _ := utils.NewDB("../database/database.json")
+	chirps, err := dbClient.GetChirps()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if chirps == nil {
+		t.Fatal("Unable to create chirps array")
+	}
+	cleanUp(t)
+}

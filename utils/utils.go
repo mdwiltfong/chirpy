@@ -77,3 +77,15 @@ func (db *DataBaseClient) EnsureDB() error {
 	}
 	return nil
 }
+
+func (db *DataBaseClient) GetChirps() ([]Chirp, error) {
+	data, err := db.LoadDB()
+	if err != nil {
+		return nil, err
+	}
+	chirps := []Chirp{}
+	for k := range data.Chirps {
+		chirps = append(chirps, data.Chirps[k])
+	}
+	return chirps, nil
+}
