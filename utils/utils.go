@@ -27,13 +27,13 @@ func NewDB(path string) (*DataBaseClient, error) {
 	_, err := os.ReadFile(path)
 	if err != nil {
 		dbTemplate, _ := os.ReadFile("../database/template.json")
-		writeError := os.WriteFile("../database/database.json", dbTemplate, 0644)
+		writeError := os.WriteFile(path, dbTemplate, 0644)
 		if writeError != nil {
 			log.Println(writeError)
 			return nil, writeError
 		}
 	}
-	return &DataBaseClient{Path: "../database/database.json"}, nil
+	return &DataBaseClient{Path: "../database/database.json", Mux: new(sync.RWMutex)}, nil
 
 }
 
@@ -48,4 +48,19 @@ func (db *DataBaseClient) LoadDB() (DBStructure, error) {
 		return DBStructure{}, errors.New(unMarshalError.Error())
 	}
 	return tempStruct, nil
+}
+
+func (db *DataBaseClient) WriteDB(dbStructure DBStructure) error {
+	db.Mux.Lock()
+	defer db.Mux.Unlock()
+	dataBytes, err := json.Marshal(dbStructure)
+	if err != nil {
+		return err
+	}
+	writeError := os.WriteFile(db.Path, dataBytes, 0644)
+	if writeError != nil {
+		return writeError
+	}
+
+	return nil
 }

@@ -44,3 +44,24 @@ func TestLoadDB(t *testing.T) {
 	}
 	cleanUp(t)
 }
+
+func TestWriteDB(t *testing.T) {
+	dbClient, _ := utils.NewDB("../database/database.json")
+	dbData, _ := dbClient.LoadDB()
+	dbData.Chirps[3] = utils.Chirp{ID: 3, Body: "Test Chirp"}
+	err := dbClient.WriteDB(dbData)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	// Check that db file has new chirp
+	dataBytes, err := os.ReadFile("../database/database.json")
+	tempStruct := utils.DBStructure{}
+	json.Unmarshal(dataBytes, &tempStruct)
+	if tempStruct.Chirps[3].ID != 3 {
+		t.Fatal("Incorrect ID stored")
+	}
+	if tempStruct.Chirps[3].Body != "Test Chirp" {
+		t.Fatal("Incorrect Body stored")
+	}
+	cleanUp(t)
+}
