@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"encoding/json"
+	"errors"
 	"log"
 	"os"
 	"sync"
@@ -33,4 +35,17 @@ func NewDB(path string) (*DataBaseClient, error) {
 	}
 	return &DataBaseClient{Path: "../database/database.json"}, nil
 
+}
+
+func (db *DataBaseClient) LoadDB() (DBStructure, error) {
+	dataBytes, err := os.ReadFile(db.Path)
+	if err != nil {
+		return DBStructure{}, errors.New(err.Error())
+	}
+	tempStruct := DBStructure{}
+	unMarshalError := json.Unmarshal(dataBytes, &tempStruct)
+	if unMarshalError != nil {
+		return DBStructure{}, errors.New(unMarshalError.Error())
+	}
+	return tempStruct, nil
 }

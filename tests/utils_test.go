@@ -8,6 +8,13 @@ import (
 	"testing"
 )
 
+func cleanUp(t *testing.T) {
+	delErr := os.Remove("../database/database.json")
+	if delErr != nil {
+		t.Fatal(delErr)
+	}
+}
+
 func TestDbFunctions(t *testing.T) {
 	dbClient, err := utils.NewDB("../database/database.json")
 	if err != nil {
@@ -23,11 +30,17 @@ func TestDbFunctions(t *testing.T) {
 	if tempData.Chirps.Num1.Body != "This is the first chirp ever!" {
 		t.Fatal("There is no database.json file")
 	}
-	// Clean up
+	cleanUp(t)
+}
 
-	delErr := os.Remove("../database/database.json")
-	if delErr != nil {
-		t.Fatal(delErr)
+func TestLoadDB(t *testing.T) {
+	dbClient, _ := utils.NewDB("../database/database.json")
+	dbStruct, err := dbClient.LoadDB()
+	if err != nil {
+		t.Fatal(err.Error())
 	}
-
+	if dbStruct.Chirps[1].Body != "This is the first chirp ever!" {
+		t.Fatalf("Was expecting ")
+	}
+	cleanUp(t)
 }
