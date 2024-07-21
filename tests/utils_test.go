@@ -90,3 +90,19 @@ func TestGetChirps(t *testing.T) {
 	}
 	cleanUp(t)
 }
+
+func TestCreateChirps(t *testing.T) {
+	dbClient, _ := utils.NewDB("../database/database.json")
+	chirp, err := dbClient.CreateChirp("Test Chirp")
+	if chirp.Body != "Test Chirp" {
+		t.Fatalf("Chirp body is incorrect. Was expecting: %s , but got %s instead", "Test Chirp", chirp.Body)
+	}
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	chirps, _ := dbClient.GetChirps()
+	if chirps[2].Body != "Test Chirp" {
+		t.Fatal("New chirp isn't being saved into disk")
+	}
+	cleanUp(t)
+}

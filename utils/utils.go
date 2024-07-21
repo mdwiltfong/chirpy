@@ -89,3 +89,16 @@ func (db *DataBaseClient) GetChirps() ([]Chirp, error) {
 	}
 	return chirps, nil
 }
+
+func (db *DataBaseClient) CreateChirp(body string) (Chirp, error) {
+	dataStruct, _ := db.LoadDB()
+	numOfChirps := len(dataStruct.Chirps)
+	id := numOfChirps + 1
+	newChirp := Chirp{ID: id, Body: body}
+	dataStruct.Chirps[id] = newChirp
+	err := db.WriteDB(dataStruct)
+	if err != nil {
+		return Chirp{}, err
+	}
+	return newChirp, nil
+}
