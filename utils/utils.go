@@ -26,7 +26,7 @@ func NewDB(path string) (*DataBaseClient, error) {
 	// Path towards database file
 	_, err := os.ReadFile(path)
 	if err != nil {
-		dbTemplate, _ := os.ReadFile("../database/template.json")
+		dbTemplate, _ := os.ReadFile("database/template.json")
 		writeError := os.WriteFile(path, dbTemplate, 0644)
 		if writeError != nil {
 			log.Println(writeError)
