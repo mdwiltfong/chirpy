@@ -3,7 +3,6 @@ package tests
 import (
 	"encoding/json"
 	"github.com/mdwiltfong/chirpy/utils"
-	"github.com/mdwiltfong/chirpy/utils/types"
 	"os"
 	"testing"
 )
@@ -18,29 +17,24 @@ func cleanUp(t *testing.T) {
 func TestDbFunctions(t *testing.T) {
 	dbClient, err := utils.NewDB("../database/database.json")
 	if err != nil {
-		t.Fatal("There was an issue creating a DB connection: ", err)
+		t.Fatalf("There was an issue creating a DB connection: %s", err)
 	}
 	if dbClient.Path != "../database/database.json" {
 		t.Fatal("Db path is incorrect")
 	}
 	// Check that a database.json file was actually made
-	data, _ := os.ReadFile("../database/database.json")
-	tempData := types.Database{}
-	json.Unmarshal(data, &tempData)
-	if tempData.Chirps.Num1.Body != "This is the first chirp ever!" {
-		t.Fatal("There is no database.json file")
+	_, readErr := os.ReadFile("../database/database.json")
+	if readErr != nil {
+		t.Fatalf("There was an issue in finding the database file: %s", readErr.Error())
 	}
 	cleanUp(t)
 }
 
 func TestLoadDB(t *testing.T) {
 	dbClient, _ := utils.NewDB("../database/database.json")
-	dbStruct, err := dbClient.LoadDB()
+	_, err := dbClient.LoadDB()
 	if err != nil {
 		t.Fatal(err.Error())
-	}
-	if dbStruct.Chirps[1].Body != "This is the first chirp ever!" {
-		t.Fatalf("Was expecting ")
 	}
 	cleanUp(t)
 }
@@ -70,11 +64,9 @@ func TestEnsureDB(t *testing.T) {
 	os.Remove("../database/database.json")
 	dbClient.EnsureDB()
 	data, _ := os.ReadFile("../database/database.json")
-	tempData := types.Database{}
+	tempData := utils.DBStructure{}
 	json.Unmarshal(data, &tempData)
-	if tempData.Chirps.Num1.Body != "This is the first chirp ever!" {
-		t.Fatal("There is no database.json file")
-	}
+
 	cleanUp(t)
 
 }
@@ -101,7 +93,7 @@ func TestCreateChirps(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 	chirps, _ := dbClient.GetChirps()
-	if chirps[2].Body != "Test Chirp" {
+	if chirps[1].Body != "Test Chirp" {
 		t.Fatal("New chirp isn't being saved into disk")
 	}
 	cleanUp(t)

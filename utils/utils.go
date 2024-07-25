@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -26,7 +28,8 @@ func NewDB(path string) (*DataBaseClient, error) {
 	// Path towards database file
 	_, err := os.ReadFile(path)
 	if err != nil {
-		dbTemplate, _ := os.ReadFile("database/template.json")
+		templatePath := GetPath()
+		dbTemplate, _ := os.ReadFile(templatePath)
 		writeError := os.WriteFile(path, dbTemplate, 0644)
 		if writeError != nil {
 			log.Println(writeError)
@@ -68,7 +71,7 @@ func (db *DataBaseClient) WriteDB(dbStructure DBStructure) error {
 func (db *DataBaseClient) EnsureDB() error {
 	_, err := os.ReadFile(db.Path)
 	if err != nil {
-		dbTemplate, _ := os.ReadFile("../database/template.json")
+		dbTemplate, _ := os.ReadFile(GetPath())
 		writeError := os.WriteFile(db.Path, dbTemplate, 0644)
 		if writeError != nil {
 			log.Println(writeError)
@@ -101,4 +104,19 @@ func (db *DataBaseClient) CreateChirp(body string) (Chirp, error) {
 		return Chirp{}, err
 	}
 	return newChirp, nil
+}
+func GetPath() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatal("Failed to get working directory:", err)
+	}
+
+	var relativePath string
+	if strings.Contains(wd, "/tests") {
+		relativePath = "../database/template.json"
+	} else {
+		relativePath = "./database/template.json"
+	}
+
+	return filepath.Join(wd, relativePath)
 }
