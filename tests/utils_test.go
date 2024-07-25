@@ -93,7 +93,7 @@ func TestCreateChirps(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 	chirps, _ := dbClient.GetChirps()
-	if chirps[1].Body != "Test Chirp" {
+	if chirps[0].Body != "Test Chirp" {
 		t.Fatal("New chirp isn't being saved into disk")
 	}
 	cleanUp(t)
