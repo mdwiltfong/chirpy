@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/mdwiltfong/chirpy/utils"
 	"log"
 	"net/http"
 	"strings"
@@ -13,7 +14,11 @@ func main() {
 	const port = "8080"
 
 	mux := http.NewServeMux()
-	apiCfg := apiConfig{}
+	client, _ := utils.NewDB("database/database.json")
+	apiCfg := apiConfig{
+		filserverHits: 0,
+		DBClient:      client,
+	}
 	mux.Handle("/app/*", http.StripPrefix("/app",
 		apiCfg.middlewareMetricInc(http.FileServer(http.Dir(filepathRoot)))))
 
@@ -22,7 +27,8 @@ func main() {
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerAdminMetrics)
 	mux.HandleFunc("/api/reset", apiCfg.handleReset)
 	mux.HandleFunc("POST /api/validate_chirp", apiCfg.handlerValideateChirp)
-
+	mux.HandleFunc("POST /api/chirps", apiCfg.handleCreateChirps)
+	mux.HandleFunc("GET /api/chirps", apiCfg.handleReadChirps)
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
@@ -34,8 +40,33 @@ func main() {
 
 type apiConfig struct {
 	filserverHits int
+	DBClient      *utils.DataBaseClient
 }
 
+func (cgf *apiConfig) handleCreateChirps(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Body string `json:"Body"`
+	}
+	// First, decode request to see if it's valid
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	decoder.Decode(&params)
+	chirp, err := cgf.DBClient.CreateChirp(params.Body)
+	if err != nil {
+		//It's not valid, so we have to prepare a response
+		log.Printf("Error decoding parameters: %s", err)
+		respondWithError(w, 400, "Something went wrong")
+		return
+	}
+	respondWithJSON(w, 201, chirp)
+}
+func (cgf *apiConfig) handleReadChirps(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cgf.DBClient.GetChirps()
+	if err != nil {
+		respondWithError(w, 503, err.Error())
+	}
+	respondWithJSON(w, 200, chirps)
+}
 func (cgf *apiConfig) middlewareMetricInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cgf.filserverHits++
