@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/mdwiltfong/chirpy/utils"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -29,6 +31,7 @@ func main() {
 	mux.HandleFunc("POST /api/validate_chirp", apiCfg.handlerValideateChirp)
 	mux.HandleFunc("POST /api/chirps", apiCfg.handleCreateChirps)
 	mux.HandleFunc("GET /api/chirps", apiCfg.handleReadChirps)
+	mux.HandleFunc("GET /api/chirps/{chirpId}", apiCfg.handleGetChirp)
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
@@ -59,6 +62,26 @@ func (cgf *apiConfig) handleCreateChirps(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	respondWithJSON(w, 201, chirp)
+}
+func (cgf *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
+	strChirpId := r.PathValue("chirpId")
+	chirpId, err := strconv.Atoi(strChirpId)
+	if err != nil {
+		respondWithError(w, 500, "There was an issue with the provided chirp id")
+	}
+	dbStruct, err := cgf.DBClient.LoadDB()
+	if err != nil {
+		log.Print("Error: ", err.Error())
+		respondWithError(w, 500, "Unable to read DB")
+		return
+	}
+
+	dbChirp, err := findChirp(chirpId, dbStruct)
+	if err != nil {
+		respondWithError(w, 404, err.Error())
+		return
+	}
+	respondWithJSON(w, 200, dbChirp)
 }
 func (cgf *apiConfig) handleReadChirps(w http.ResponseWriter, r *http.Request) {
 	chirps, err := cgf.DBClient.GetChirps()
@@ -126,7 +149,14 @@ func handlerReadiness(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(http.StatusText(http.StatusOK)))
 }
-
+func findChirp(chirpId int, dbstruct utils.DBStructure) (utils.Chirp, error) {
+	for i, chirp := range dbstruct.Chirps {
+		if i == chirpId {
+			return chirp, nil
+		}
+	}
+	return utils.Chirp{}, errors.New(fmt.Sprintf("Unable to find chirp: %v", chirpId))
+}
 func respondWithCleanedBody(w http.ResponseWriter, chirp string) {
 	profaneWords := map[string]struct{}{
 		"kerfuffle": {},
