@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/mdwiltfong/chirpy/utils"
 	"github.com/mdwiltfong/chirpy/utils/types"
+	"golang.org/x/crypto/bcrypt"
 	"log"
 	"net/http"
 	"strconv"
@@ -34,6 +35,7 @@ func main() {
 	mux.HandleFunc("GET /api/chirps", apiCfg.handleReadChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpId}", apiCfg.handleGetChirp)
 	mux.HandleFunc("POST /api/users", apiCfg.handleCreateUser)
+	mux.HandleFunc("POST /api/login", apiCfg.handleLogin)
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
@@ -66,18 +68,51 @@ func (cgf *apiConfig) handleCreateChirps(w http.ResponseWriter, r *http.Request)
 
 func (cgf *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password []byte `json:"password"`
 	}
 	// First, decode request to see if it's valid
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	decoder.Decode(&params)
-	newUser, err := cgf.DBClient.CreateUsers(params.Email)
+	hash, err := bcrypt.GenerateFromPassword(params.Password, 10)
+	if err != nil {
+		log.Print(err.Error())
+		respondWithError(w, 503, "There was an issue creating the user")
+		return
+	}
+	newUser, err := cgf.DBClient.CreateUsers(params.Email, hash)
 	if err != nil {
 		log.Print(err.Error())
 		respondWithError(w, 422, "There was an issue creating the user")
+		return
 	}
 	respondWithJSON(w, 201, newUser)
+}
+
+func (cgf *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password []byte `json:"password"`
+	}
+	// First, decode request to see if it's valid
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	decoder.Decode(&params)
+	user, err := cgf.DBClient.GetUser(params.Email)
+	if err != nil {
+		log.Print(err.Error())
+		respondWithError(w, 401, err.Error())
+		return
+	}
+	hashErr := bcrypt.CompareHashAndPassword(user.Password, params.Password)
+	if hashErr != nil {
+		log.Print(hashErr.Error())
+		respondWithError(w, 401, "Incorrect username or password")
+		return
+	}
+	user.Password = nil
+	respondWithJSON(w, 200, user)
 }
 func (cgf *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
 	strChirpId := r.PathValue("chirpId")
