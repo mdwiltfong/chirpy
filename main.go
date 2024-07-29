@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mdwiltfong/chirpy/utils"
+	"github.com/mdwiltfong/chirpy/utils/types"
 	"log"
 	"net/http"
 	"strconv"
@@ -32,6 +33,7 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", apiCfg.handleCreateChirps)
 	mux.HandleFunc("GET /api/chirps", apiCfg.handleReadChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpId}", apiCfg.handleGetChirp)
+	mux.HandleFunc("POST /api/users", apiCfg.handleCreateUser)
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
@@ -56,12 +58,26 @@ func (cgf *apiConfig) handleCreateChirps(w http.ResponseWriter, r *http.Request)
 	decoder.Decode(&params)
 	chirp, err := cgf.DBClient.CreateChirp(params.Body)
 	if err != nil {
-		//It's not valid, so we have to prepare a response
 		log.Printf("Error decoding parameters: %s", err)
 		respondWithError(w, 400, "Something went wrong")
-		return
 	}
 	respondWithJSON(w, 201, chirp)
+}
+
+func (cgf *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email string `json:"email"`
+	}
+	// First, decode request to see if it's valid
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	decoder.Decode(&params)
+	newUser, err := cgf.DBClient.CreateUsers(params.Email)
+	if err != nil {
+		log.Print(err.Error())
+		respondWithError(w, 422, "There was an issue creating the user")
+	}
+	respondWithJSON(w, 201, newUser)
 }
 func (cgf *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
 	strChirpId := r.PathValue("chirpId")
@@ -149,13 +165,13 @@ func handlerReadiness(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(http.StatusText(http.StatusOK)))
 }
-func findChirp(chirpId int, dbstruct utils.DBStructure) (utils.Chirp, error) {
+func findChirp(chirpId int, dbstruct types.Database) (types.Chirp, error) {
 	for i, chirp := range dbstruct.Chirps {
 		if i == chirpId {
 			return chirp, nil
 		}
 	}
-	return utils.Chirp{}, errors.New(fmt.Sprintf("Unable to find chirp: %v", chirpId))
+	return types.Chirp{}, errors.New(fmt.Sprintf("Unable to find chirp: %v", chirpId))
 }
 func respondWithCleanedBody(w http.ResponseWriter, chirp string) {
 	profaneWords := map[string]struct{}{
@@ -185,9 +201,11 @@ func respondWithCleanedBody(w http.ResponseWriter, chirp string) {
 
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.WriteHeader(code)
-	data, _ := json.Marshal(payload)
+	data, err := json.Marshal(payload)
+	if err != nil {
+		log.Print(err.Error())
+	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
 	fmt.Println("Outgoing Data: ", data)
 	w.Write(data)
 	return
