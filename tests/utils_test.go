@@ -3,6 +3,7 @@ package tests
 import (
 	"encoding/json"
 	"github.com/mdwiltfong/chirpy/utils"
+	"github.com/mdwiltfong/chirpy/utils/types"
 	"os"
 	"testing"
 )
@@ -23,9 +24,17 @@ func TestDbFunctions(t *testing.T) {
 		t.Fatal("Db path is incorrect")
 	}
 	// Check that a database.json file was actually made
-	_, readErr := os.ReadFile("../database/database.json")
+	dataBytes, readErr := os.ReadFile("../database/database.json")
+	tempStruct := types.Database{Chirps: make(map[int]types.Chirp), Users: make(map[int]types.User)}
+	json.Unmarshal(dataBytes, tempStruct)
 	if readErr != nil {
 		t.Fatalf("There was an issue in finding the database file: %s", readErr.Error())
+	}
+	if tempStruct.Chirps == nil {
+		t.Fatal("Unable to store chirps")
+	}
+	if tempStruct.Users == nil {
+		t.Fatal("Unable to store users")
 	}
 	cleanUp(t)
 }
@@ -42,14 +51,14 @@ func TestLoadDB(t *testing.T) {
 func TestWriteDB(t *testing.T) {
 	dbClient, _ := utils.NewDB("../database/database.json")
 	dbData, _ := dbClient.LoadDB()
-	dbData.Chirps[3] = utils.Chirp{ID: 3, Body: "Test Chirp"}
+	dbData.Chirps[3] = types.Chirp{ID: 3, Body: "Test Chirp"}
 	err := dbClient.WriteDB(dbData)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 	// Check that db file has new chirp
 	dataBytes, err := os.ReadFile("../database/database.json")
-	tempStruct := utils.DBStructure{}
+	tempStruct := types.Database{}
 	json.Unmarshal(dataBytes, &tempStruct)
 	if tempStruct.Chirps[3].ID != 3 {
 		t.Fatal("Incorrect ID stored")
@@ -64,7 +73,7 @@ func TestEnsureDB(t *testing.T) {
 	os.Remove("../database/database.json")
 	dbClient.EnsureDB()
 	data, _ := os.ReadFile("../database/database.json")
-	tempData := utils.DBStructure{}
+	tempData := types.Database{}
 	json.Unmarshal(data, &tempData)
 
 	cleanUp(t)

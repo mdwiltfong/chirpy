@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"errors"
+	"github.com/mdwiltfong/chirpy/utils/types"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,15 +14,6 @@ import (
 type DataBaseClient struct {
 	Path string
 	Mux  *sync.RWMutex
-}
-
-type Chirp struct {
-	ID   int    `json:"id"`
-	Body string `json:"body"`
-}
-
-type DBStructure struct {
-	Chirps map[int]Chirp `json:"chirps"`
 }
 
 func NewDB(path string) (*DataBaseClient, error) {
@@ -40,20 +32,20 @@ func NewDB(path string) (*DataBaseClient, error) {
 
 }
 
-func (db *DataBaseClient) LoadDB() (DBStructure, error) {
+func (db *DataBaseClient) LoadDB() (types.Database, error) {
 	dataBytes, err := os.ReadFile(db.Path)
 	if err != nil {
-		return DBStructure{}, errors.New(err.Error())
+		return types.Database{}, errors.New(err.Error())
 	}
-	tempStruct := DBStructure{}
+	tempStruct := types.Database{}
 	unMarshalError := json.Unmarshal(dataBytes, &tempStruct)
 	if unMarshalError != nil {
-		return DBStructure{}, errors.New(unMarshalError.Error())
+		return types.Database{}, errors.New(unMarshalError.Error())
 	}
 	return tempStruct, nil
 }
 
-func (db *DataBaseClient) WriteDB(dbStructure DBStructure) error {
+func (db *DataBaseClient) WriteDB(dbStructure types.Database) error {
 	db.Mux.Lock()
 	defer db.Mux.Unlock()
 	dataBytes, err := json.Marshal(dbStructure)
@@ -81,30 +73,45 @@ func (db *DataBaseClient) EnsureDB() error {
 	return nil
 }
 
-func (db *DataBaseClient) GetChirps() ([]Chirp, error) {
+func (db *DataBaseClient) GetChirps() ([]types.Chirp, error) {
 	data, err := db.LoadDB()
 	if err != nil {
 		return nil, err
 	}
-	chirps := []Chirp{}
+	chirps := []types.Chirp{}
 	for k := range data.Chirps {
 		chirps = append(chirps, data.Chirps[k])
 	}
 	return chirps, nil
 }
 
-func (db *DataBaseClient) CreateChirp(body string) (Chirp, error) {
+func (db *DataBaseClient) CreateChirp(body string) (types.Chirp, error) {
 	dataStruct, _ := db.LoadDB()
 	numOfChirps := len(dataStruct.Chirps)
 	id := numOfChirps + 1
-	newChirp := Chirp{ID: id, Body: body}
+	newChirp := types.Chirp{ID: id, Body: body}
 	dataStruct.Chirps[id] = newChirp
 	err := db.WriteDB(dataStruct)
 	if err != nil {
-		return Chirp{}, err
+		return types.Chirp{}, err
 	}
 	return newChirp, nil
 }
+
+func (db *DataBaseClient) CreateUsers(email string) (types.User, error) {
+	dataStruct, _ := db.LoadDB()
+	numOfUsers := len(dataStruct.Users)
+	id := numOfUsers + 1
+	newUser := types.User{ID: id, Email: email}
+	dataStruct.Users[id] = newUser
+	err := db.WriteDB(dataStruct)
+	if err != nil {
+		return types.User{}, err
+	}
+	return newUser, nil
+
+}
+
 func GetPath() string {
 	wd, err := os.Getwd()
 	if err != nil {
