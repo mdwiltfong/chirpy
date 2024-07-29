@@ -98,18 +98,29 @@ func (db *DataBaseClient) CreateChirp(body string) (types.Chirp, error) {
 	return newChirp, nil
 }
 
-func (db *DataBaseClient) CreateUsers(email string) (types.User, error) {
+func (db *DataBaseClient) CreateUsers(email string, password []byte) (types.User, error) {
 	dataStruct, _ := db.LoadDB()
 	numOfUsers := len(dataStruct.Users)
 	id := numOfUsers + 1
-	newUser := types.User{ID: id, Email: email}
+	newUser := types.User{ID: id, Email: email, Password: password}
 	dataStruct.Users[id] = newUser
 	err := db.WriteDB(dataStruct)
 	if err != nil {
 		return types.User{}, err
 	}
+	newUser.Password = nil
 	return newUser, nil
 
+}
+
+func (db *DataBaseClient) GetUser(email string) (types.User, error) {
+	dataStruct, _ := db.LoadDB()
+	for _, user := range dataStruct.Users {
+		if user.Email == email {
+			return user, nil
+		}
+	}
+	return types.User{}, errors.New("Can't find user")
 }
 
 func GetPath() string {

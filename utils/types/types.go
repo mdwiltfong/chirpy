@@ -5,8 +5,9 @@ type Chirp struct {
 	Body string `json:"body"`
 }
 type User struct {
-	ID    int    `json:"id"`
-	Email string `json:"email"`
+	ID       int    `json:"id"`
+	Email    string `json:"email"`
+	Password []byte `json:"password,omitempty"`
 }
 type Database struct {
 	Chirps map[int]Chirp `json:"chirps"`
