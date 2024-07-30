@@ -4,16 +4,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/joho/godotenv"
 	"github.com/mdwiltfong/chirpy/utils"
 	"github.com/mdwiltfong/chirpy/utils/types"
 	"golang.org/x/crypto/bcrypt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
+	godotenv.Load()
+	jwtSecret := os.Getenv("JWT_SECRET")
 	const filepathRoot = "."
 	const port = "8080"
 
@@ -22,6 +28,7 @@ func main() {
 	apiCfg := apiConfig{
 		filserverHits: 0,
 		DBClient:      client,
+		JWT_SECRET:    jwtSecret,
 	}
 	mux.Handle("/app/*", http.StripPrefix("/app",
 		apiCfg.middlewareMetricInc(http.FileServer(http.Dir(filepathRoot)))))
@@ -48,6 +55,7 @@ func main() {
 type apiConfig struct {
 	filserverHits int
 	DBClient      *utils.DataBaseClient
+	JWT_SECRET    string
 }
 
 func (cgf *apiConfig) handleCreateChirps(w http.ResponseWriter, r *http.Request) {
@@ -92,8 +100,9 @@ func (cgf *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 func (cgf *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email    string `json:"email"`
-		Password []byte `json:"password"`
+		Email     string `json:"email"`
+		Password  []byte `json:"password"`
+		ExpiresAt string `json:"expires_at"`
 	}
 	// First, decode request to see if it's valid
 	decoder := json.NewDecoder(r.Body)
@@ -112,6 +121,24 @@ func (cgf *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user.Password = nil
+	tempExpiresAt := jwt.NewNumericDate(time.Now().UTC())
+	if params.ExpiresAt != "" {
+		intExpiresAt, _ := strconv.Atoi(params.ExpiresAt)
+		tempExpiresAt = jwt.NewNumericDate(time.Now().UTC().Add(time.Duration(intExpiresAt)))
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
+		Issuer:    "chirpy",
+		IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+		ExpiresAt: tempExpiresAt,
+		Subject:   string(user.ID),
+	})
+	signedToken, signingErr := token.SignedString(cgf.JWT_SECRET)
+	if signingErr != nil {
+		log.Print(signingErr.Error())
+		respondWithError(w, 503, "There was an issue logging in")
+		return
+	}
+	user.Token = signedToken
 	respondWithJSON(w, 200, user)
 }
 func (cgf *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {

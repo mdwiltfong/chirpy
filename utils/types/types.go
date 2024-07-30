@@ -8,6 +8,7 @@ type User struct {
 	ID       int    `json:"id"`
 	Email    string `json:"email"`
 	Password []byte `json:"password,omitempty"`
+	Token    string `json:"token,omitempty"`
 }
 type Database struct {
 	Chirps map[int]Chirp `json:"chirps"`
