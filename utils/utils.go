@@ -113,7 +113,7 @@ func (db *DataBaseClient) CreateUsers(email string, password []byte) (types.User
 
 }
 
-func (db *DataBaseClient) GetUser(email string) (types.User, error) {
+func (db *DataBaseClient) GetUserByEmail(email string) (types.User, error) {
 	dataStruct, _ := db.LoadDB()
 	for _, user := range dataStruct.Users {
 		if user.Email == email {
@@ -121,6 +121,22 @@ func (db *DataBaseClient) GetUser(email string) (types.User, error) {
 		}
 	}
 	return types.User{}, errors.New("Can't find user")
+}
+
+func (db *DataBaseClient) GetUserByID(id int) (types.User, error) {
+	datastruct, _ := db.LoadDB()
+	return datastruct.Users[id], nil
+}
+
+func (db *DataBaseClient) UpdateUser(id int, updateInformation types.User) (types.User, error) {
+	dataStruct, err := db.LoadDB()
+	if err != nil {
+		return types.User{}, err
+	}
+	dataStruct.Users[id] = updateInformation
+
+	return dataStruct.Users[id], db.WriteDB(dataStruct)
+
 }
 
 func GetPath() string {

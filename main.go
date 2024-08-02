@@ -42,6 +42,7 @@ func main() {
 	mux.HandleFunc("GET /api/chirps", apiCfg.handleReadChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpId}", apiCfg.handleGetChirp)
 	mux.HandleFunc("POST /api/users", apiCfg.handleCreateUser)
+	mux.HandleFunc("PUT /api/users", apiCfg.handleUpdateUser)
 	mux.HandleFunc("POST /api/login", apiCfg.handleLogin)
 	srv := &http.Server{
 		Addr:    ":" + port,
@@ -73,17 +74,62 @@ func (cgf *apiConfig) handleCreateChirps(w http.ResponseWriter, r *http.Request)
 	}
 	respondWithJSON(w, 201, chirp)
 }
-
-func (cgf *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+func (cgf *apiConfig) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Email    string `json:"email"`
-		Password []byte `json:"password"`
+		Password string `json:"password"`
 	}
 	// First, decode request to see if it's valid
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	decoder.Decode(&params)
-	hash, err := bcrypt.GenerateFromPassword(params.Password, 10)
+
+	authHeader := r.Header.Get("Authorization")
+	authHeaderArr := strings.SplitAfter(authHeader, " ")
+	bearerToken := authHeaderArr[1]
+	type MyCustomClaims struct {
+		jwt.RegisteredClaims
+	}
+	parsedToken, err := jwt.ParseWithClaims(bearerToken, &MyCustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(cgf.JWT_SECRET), nil
+	})
+
+	if err != nil {
+		respondWithError(w, 401, "Unauthorized request")
+		return
+	}
+	userStrId, subjectErr := parsedToken.Claims.GetSubject()
+	if subjectErr != nil {
+		log.Print(subjectErr.Error())
+		respondWithError(w, 503, "Server error")
+		return
+	}
+	userId, _ := strconv.Atoi(userStrId)
+	hash, err := bcrypt.GenerateFromPassword([]byte(params.Password), 10)
+	updateUser := types.User{ID: userId, Email: params.Email, Password: hash}
+	updatedUser, updatingErr := cgf.DBClient.UpdateUser(userId, updateUser)
+	if updatingErr != nil {
+		log.Print(updatingErr.Error())
+		respondWithError(w, 401, "Unable to update user")
+		return
+	}
+	updatedUser.Password = nil
+	respondWithJSON(w, 200, updatedUser)
+
+}
+func (cgf *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	// First, decode request to see if it's valid
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	decoder.Decode(&params)
+	hash, err := bcrypt.GenerateFromPassword([]byte(params.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Print(err.Error())
 		respondWithError(w, 503, "There was an issue creating the user")
@@ -100,39 +146,41 @@ func (cgf *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 func (cgf *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email     string `json:"email"`
-		Password  []byte `json:"password"`
-		ExpiresAt string `json:"expires_at"`
+		Email            string `json:"email"`
+		Password         string `json:"password"`
+		ExpiresInSeconds int    `json:"expires_in_seconds"`
 	}
 	// First, decode request to see if it's valid
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	decoder.Decode(&params)
-	user, err := cgf.DBClient.GetUser(params.Email)
+	user, err := cgf.DBClient.GetUserByEmail(params.Email)
 	if err != nil {
 		log.Print(err.Error())
 		respondWithError(w, 401, err.Error())
 		return
 	}
-	hashErr := bcrypt.CompareHashAndPassword(user.Password, params.Password)
+	pass := []byte(params.Password)
+	hashErr := bcrypt.CompareHashAndPassword(user.Password, pass)
 	if hashErr != nil {
 		log.Print(hashErr.Error())
 		respondWithError(w, 401, "Incorrect username or password")
 		return
 	}
 	user.Password = nil
-	tempExpiresAt := jwt.NewNumericDate(time.Now().UTC())
-	if params.ExpiresAt != "" {
-		intExpiresAt, _ := strconv.Atoi(params.ExpiresAt)
-		tempExpiresAt = jwt.NewNumericDate(time.Now().UTC().Add(time.Duration(intExpiresAt)))
+	tempExpiresAt := jwt.NewNumericDate(time.Now().UTC().Add(time.Hour * 24 * 10))
+	if params.ExpiresInSeconds != 0 {
+		//intExpiresAt, _ := strconv.Atoi(params.ExpiresInSeconds)
+		tempExpiresAt = jwt.NewNumericDate(time.Now().UTC().Add(time.Duration(params.ExpiresInSeconds)))
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Issuer:    "chirpy",
 		IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
 		ExpiresAt: tempExpiresAt,
-		Subject:   string(user.ID),
+		Subject:   strconv.Itoa(user.ID),
 	})
-	signedToken, signingErr := token.SignedString(cgf.JWT_SECRET)
+
+	signedToken, signingErr := token.SignedString([]byte(cgf.JWT_SECRET))
 	if signingErr != nil {
 		log.Print(signingErr.Error())
 		respondWithError(w, 503, "There was an issue logging in")
