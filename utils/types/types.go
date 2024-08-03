@@ -5,10 +5,11 @@ type Chirp struct {
 	Body string `json:"body"`
 }
 type User struct {
-	ID       int    `json:"id"`
-	Email    string `json:"email"`
-	Password []byte `json:"password,omitempty"`
-	Token    string `json:"token,omitempty"`
+	ID            int    `json:"id"`
+	Email         string `json:"email"`
+	Password      []byte `json:"password,omitempty"`
+	Token         string `json:"token,omitempty"`
+	Refresh_Token string `json:"refresh_token,omitempty"`
 }
 type Database struct {
 	Chirps map[int]Chirp `json:"chirps"`

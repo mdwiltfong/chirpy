@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -153,13 +155,19 @@ func (cgf *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// First, decode request to see if it's valid
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
-	decoder.Decode(&params)
+	decodeErr := decoder.Decode(&params)
+	if decodeErr != nil {
+		log.Print(decodeErr.Error())
+		respondWithError(w, 503, "Invalid payload")
+	}
+	// Search for user
 	user, err := cgf.DBClient.GetUserByEmail(params.Email)
 	if err != nil {
 		log.Print(err.Error())
 		respondWithError(w, 401, err.Error())
 		return
 	}
+	//Hash pw and store it
 	pass := []byte(params.Password)
 	hashErr := bcrypt.CompareHashAndPassword(user.Password, pass)
 	if hashErr != nil {
@@ -187,6 +195,15 @@ func (cgf *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user.Token = signedToken
+	// Refresh Token
+	c := 10
+	rndData, readErr := rand.Read(make([]byte, c))
+	if readErr != nil {
+		log.Print(readErr.Error())
+		respondWithError(w, 503, "There was an issue logging in")
+	}
+	encodedString := hex.EncodeToString(make([]byte, rndData))
+	user.Refresh_Token = encodedString
 	respondWithJSON(w, 200, user)
 }
 func (cgf *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
