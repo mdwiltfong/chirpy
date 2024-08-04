@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,6 +44,7 @@ func main() {
 	mux.HandleFunc("POST /api/users", apiCfg.handleCreateUser)
 	mux.HandleFunc("PUT /api/users", apiCfg.handleUpdateUser)
 	mux.HandleFunc("POST /api/login", apiCfg.handleLogin)
+	mux.HandleFunc("POST /api/refresh", apiCfg.handleRefresh)
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
@@ -146,11 +145,21 @@ func (cgf *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, 201, newUser)
 }
 
+func (cgf *apiConfig) handleRefresh(w http.ResponseWriter, r *http.Request) {
+
+}
+
 func (cgf *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Email            string `json:"email"`
 		Password         string `json:"password"`
 		ExpiresInSeconds int    `json:"expires_in_seconds"`
+	}
+	type payload struct {
+		ID           int    `json:"id"`
+		Email        string `json:"email"`
+		Token        string `json:"token"`
+		RefreshToken string `json:"refresh_token"`
 	}
 	// First, decode request to see if it's valid
 	decoder := json.NewDecoder(r.Body)
@@ -176,9 +185,8 @@ func (cgf *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user.Password = nil
-	tempExpiresAt := jwt.NewNumericDate(time.Now().UTC().Add(time.Hour * 24 * 10))
+	tempExpiresAt := jwt.NewNumericDate(time.Now().UTC().Add(time.Hour))
 	if params.ExpiresInSeconds != 0 {
-		//intExpiresAt, _ := strconv.Atoi(params.ExpiresInSeconds)
 		tempExpiresAt = jwt.NewNumericDate(time.Now().UTC().Add(time.Duration(params.ExpiresInSeconds)))
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
@@ -195,16 +203,12 @@ func (cgf *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user.Token = signedToken
-	// Refresh Token
-	c := 10
-	rndData, readErr := rand.Read(make([]byte, c))
-	if readErr != nil {
-		log.Print(readErr.Error())
+	refreshToken, generateErr := cgf.DBClient.GenerateRefreshToken(user.ID)
+	if generateErr != nil {
 		respondWithError(w, 503, "There was an issue logging in")
 	}
-	encodedString := hex.EncodeToString(make([]byte, rndData))
-	user.Refresh_Token = encodedString
-	respondWithJSON(w, 200, user)
+	result := payload{ID: user.ID, Email: user.Email, Token: user.Token, RefreshToken: refreshToken.Token}
+	respondWithJSON(w, 200, result)
 }
 func (cgf *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
 	strChirpId := r.PathValue("chirpId")
