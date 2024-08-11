@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 type DataBaseClient struct {
@@ -140,7 +141,7 @@ func (db *DataBaseClient) UpdateUser(id int, updateInformation types.User) (type
 	return dataStruct.Users[id], db.WriteDB(dataStruct)
 
 }
-func (db *DataBaseClient) StoreUsersRefreshToken(token string, userId int) (types.RefreshToken, error) {
+func (db *DataBaseClient) StoreRefreshToken(refreshToken types.RefreshToken) (types.RefreshToken, error) {
 	dataStruct, err := db.LoadDB()
 	if err != nil {
 		log.Print(err.Error())
@@ -148,11 +149,11 @@ func (db *DataBaseClient) StoreUsersRefreshToken(token string, userId int) (type
 	}
 	numOfTokens := len(dataStruct.RefreshTokens)
 	id := numOfTokens + 1
-	refreshToken := types.RefreshToken{ID: id, Token: token, UserId: userId, IsValid: true}
+	refreshToken.ID = id
 	dataStruct.RefreshTokens[id] = refreshToken
-	user := dataStruct.Users[userId]
+	user := dataStruct.Users[refreshToken.UserId]
 	user.RefreshTokenId = id
-	dataStruct.Users[userId] = user
+	dataStruct.Users[refreshToken.UserId] = user
 	writeErr := db.WriteDB(dataStruct)
 	if writeErr != nil {
 		return types.RefreshToken{}, writeErr
@@ -160,7 +161,24 @@ func (db *DataBaseClient) StoreUsersRefreshToken(token string, userId int) (type
 	return refreshToken, nil
 }
 
-func (db *DataBaseClient) GetRefreshToken(tokenId int) (types.RefreshToken, error) {
+func (db *DataBaseClient) UpdateRefreshToken(updatedRefreshToken types.RefreshToken) (bool, error) {
+	dataStruct, err := db.LoadDB()
+	if err != nil {
+		log.Print(err.Error())
+		return false, err
+	}
+	if err != nil {
+		return false, err
+	}
+	dataStruct.RefreshTokens[updatedRefreshToken.ID] = updatedRefreshToken
+	writeErr := db.WriteDB(dataStruct)
+	if writeErr != nil {
+		return false, writeErr
+	}
+	return true, nil
+}
+
+func (db *DataBaseClient) GetRefreshTokenID(tokenId int) (types.RefreshToken, error) {
 	dataStruct, err := db.LoadDB()
 	if err != nil {
 		return types.RefreshToken{}, errors.New("There was an issue loading the db")
@@ -172,8 +190,21 @@ func (db *DataBaseClient) GetRefreshToken(tokenId int) (types.RefreshToken, erro
 	}
 }
 
+func (db *DataBaseClient) GetRefreshTokenByString(token string) (types.RefreshToken, error) {
+	dataStruct, err := db.LoadDB()
+	if err != nil {
+		return types.RefreshToken{}, errors.New(err.Error())
+	}
+	for _, refreshToken := range dataStruct.RefreshTokens {
+		if refreshToken.Token == token {
+			return refreshToken, nil
+		}
+	}
+	return types.RefreshToken{}, errors.New("Could not find Refresh Token")
+}
+
 func (db *DataBaseClient) InvalidateToken(tokenId int) (types.RefreshToken, error) {
-	token, err := db.GetRefreshToken(tokenId)
+	token, err := db.GetRefreshTokenID(tokenId)
 	if err != nil {
 		return types.RefreshToken{}, err
 	}
@@ -181,9 +212,15 @@ func (db *DataBaseClient) InvalidateToken(tokenId int) (types.RefreshToken, erro
 		return token, nil
 	} else {
 		token.IsValid = false
+		isUpdated, updateErr := db.UpdateRefreshToken(token)
+		if isUpdated != true && updateErr != nil {
+			log.Print(updateErr.Error())
+			return types.RefreshToken{}, updateErr
+		}
+		return token, nil
 	}
 
-	return token, nil
+	return types.RefreshToken{}, nil
 }
 
 func (db *DataBaseClient) InvalidateUsersToken(userId int) error {
@@ -192,7 +229,7 @@ func (db *DataBaseClient) InvalidateUsersToken(userId int) error {
 		log.Print(err.Error())
 		return errors.New("User not found")
 	}
-	token, getErr := db.GetRefreshToken(foundUser.RefreshTokenId)
+	token, getErr := db.GetRefreshTokenID(foundUser.RefreshTokenId)
 	if getErr != nil {
 		log.Print(getErr.Error())
 		return errors.New("Couldn't find token")
@@ -214,7 +251,9 @@ func (db *DataBaseClient) GenerateRefreshToken(userId int) (types.RefreshToken, 
 		return types.RefreshToken{}, readErr
 	}
 	encodedString := hex.EncodeToString(rndByteArr)
-	refreshToken, storeErr := db.StoreUsersRefreshToken(encodedString, userId)
+	timeNow := time.Now().UTC().Add(time.Hour * 24 * 60)
+	refreshToken := types.RefreshToken{Token: encodedString, UserId: userId, IsValid: true, ExpiresAt: timeNow}
+	refreshToken, storeErr := db.StoreRefreshToken(refreshToken)
 	if storeErr != nil {
 		return types.RefreshToken{}, storeErr
 	}
